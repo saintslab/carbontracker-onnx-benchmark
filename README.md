@@ -17,3 +17,5 @@ Emissions produced per inference: 2.7336692681688437e-05 gCO2eq
 ~~~
 
 It will automatically use and track connected CPUs (Intel or Apple Silicon only) and GPUs (Nvidia only).
+
+Note: For now, this does not support Python 3.12 and above.
