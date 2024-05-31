@@ -1,12 +1,10 @@
 import numpy as np
 import onnx
-import os
 import glob
 
 import onnxruntime as rt
 from onnx import numpy_helper
 from onnx.mapping import TENSOR_TYPE_MAP
-import subprocess
 from carbontracker.tracker import CarbonTracker
 
 import tempfile
@@ -15,76 +13,41 @@ import argparse
 import yaml
 import torch
 
-
-def fetch_model_from_name(folder: str, model_name: str):
-    os.chdir("./models")
-    if not os.path.exists(f"{model_name}.onnx"):
-        sub = subprocess.run(
-            [
-                f"wget https://github.com/onnx/models/raw/main/{folder}/{model_name}.onnx",
-            ],
-            shell=True,
-            check=True,
-            capture_output=True,
-        )
-        sub2 = subprocess.run(
-            [
-                f"wget https://github.com/onnx/models/raw/main/{folder}/turnkey_stats.yaml -o {model_name}.yaml",
-            ],
-            shell=True,
-            check=True,
-            capture_output=True,
-        )
-        print("Fetched model")
-    else:
-        print("Already downloaded model")
-    with open(os.path.abspath(f"./{model_name}.onnx"), "rb") as stream:
-        model = onnx.load(stream)
-    os.chdir("..")
-    return model
-
-
-def generate_test_data(model: onnx.ModelProto, n=None, batch_dim=None):
-    assert len(model.graph.input) == 1
-    elem_type = TENSOR_TYPE_MAP[model.graph.input[0].type.tensor_type.elem_type]
-    shape = [d.dim_value for d in model.graph.input[0].type.tensor_type.shape.dim]
-    if n is not None and batch_dim is not None:
-        shape[batch_dim] = n
-    generator = np.random.default_rng()
-    return generator.random(size=shape, dtype=elem_type.np_dtype)
-
-
-def inference(model_name, input_data, tracker):
-    session = rt.InferenceSession(
-        os.path.join(os.getcwd(), "models", f"{model_name}.onnx")
-    )
-    # Get the input name for the ONNX model
-    input_name = session.get_inputs()[0].name
-
-    # Get the output name for the ONNX model
-    output_name = session.get_outputs()[0].name
-
-    # Run the model with the input data
-    tracker.epoch_start()
-    results = [session.run([output_name], {input_name: x}) for x in input_data]
-    tracker.epoch_end()
-
-    # return results
-
+from model_zoo import fetch_model_from_name
+from model import generate_test_data, inference
+import os
 
 parser = argparse.ArgumentParser(prog="ONNX CarbonTracker")
-parser.add_argument("repo_folder")
-parser.add_argument("model_name")
+parser.add_argument(
+    "model", help="Model to evaluate. Can either be a file name or a URL to its Github"
+)
 parser.add_argument(
     "--api_key", help="API key for electricitymaps. Example: --api_key=123abc"
 )
+parser.add_argument(
+    "-n", help="Amount of datapoints to test inference over", default=100, type=int
+)
+
+def parse_argument(arg):
+    if isinstance(args.model, str):
+        if isinstance(args.model, str) and 'github' in args.model:
+            suffix = args.model.split('github.com/onnx/models')[1].split('main/')[1].split('/')
+            return '/'.join(suffix[:-1]), suffix[-1]
+    else:
+        raise Exception('model has to be string (either filename or url to model zoo)')
+
 if __name__ == "__main__":
     args = parser.parse_args()
-    model = fetch_model_from_name(args.repo_folder, args.model_name)
-    test_data = [generate_test_data(model) for i in range(100)]
+    n = args.n
+    folder, model_name = parse_argument(args.model)
+    model = fetch_model_from_name(folder, model_name)
+    test_data = [generate_test_data(model) for i in range(n)]
     api_keys = None
     if args.api_key is not None:
         api_keys = {"electricitymaps": args.api_key}
-    tracker = CarbonTracker(epochs=1, api_keys=api_keys, verbose=0)
-    inference(args.model_name, test_data, tracker)
-    # print(test_data)
+    tracker = CarbonTracker(epochs=1, monitor_epochs=1000, api_keys=api_keys, verbose=0, ignore_errors=False)
+    energy, emissions = inference(model_name, test_data, tracker)
+    print(f'Total used energy: {sum(energy)} kWh')
+    print(f'Energy per inference: {sum(energy)/n} kWh')
+    print(f'Total emissions produced: {sum(emissions)} gCO2eq')
+    print(f'Emissions produced per inference: {sum(emissions)/n} gCO2eq')
