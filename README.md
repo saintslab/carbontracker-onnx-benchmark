@@ -6,7 +6,7 @@ For accurate measurements, we recommend supplying an API key for [Electricitymap
 
 Example usage (with model from ONNX model zoo):
 ~~~
-python evaluate.py https://github.com/onnx/models/blob/main/Computer_Vision/adv_inception_v3_Opset16_timm/adv_inception_v3_Opset16.onnx -n=100 --api_key=123abc
+python main.py https://github.com/onnx/models/blob/main/Computer_Vision/adv_inception_v3_Opset16_timm/adv_inception_v3_Opset16.onnx -n=100 --api_key=123abc
 ~~~
 Response:
 ~~~
