@@ -22,10 +22,8 @@ def fetch_model_from_name(folder: str, model_name: str):
             check=True,
             capture_output=True,
         )
-        print("Fetched model")
-    else:
-        print("Already downloaded model")
     with open(os.path.abspath(f"./{model_name}"), "rb") as stream:
+        print(f"Model name: {model_name}")
         model = onnx.load(stream)
     os.chdir("..")
     return model

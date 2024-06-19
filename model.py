@@ -7,6 +7,7 @@ from carbontracker.tracker import CarbonTracker
 
 import os
 
+
 def generate_test_data(model: onnx.ModelProto, n=None, batch_dim=None):
     assert len(model.graph.input) == 1
     elem_type = TENSOR_TYPE_MAP[model.graph.input[0].type.tensor_type.elem_type]
@@ -17,10 +18,8 @@ def generate_test_data(model: onnx.ModelProto, n=None, batch_dim=None):
     return generator.random(size=shape, dtype=elem_type.np_dtype)
 
 
-def inference(model_name, input_data, tracker: CarbonTracker):
-    session = rt.InferenceSession(
-        os.path.join(os.getcwd(), "models", f"{model_name}")
-    )
+def _inference(model, input_data, tracker):
+    session = rt.InferenceSession(model)
     # Get the input name for the ONNX model
     input_name = session.get_inputs()[0].name
 
@@ -36,3 +35,9 @@ def inference(model_name, input_data, tracker: CarbonTracker):
     emissions = tracker._co2eq(energy)
     tracker.stop()
     return energy, emissions
+
+
+def inference(model_name, input_data, tracker: CarbonTracker):
+    return _inference(
+        os.path.join(os.getcwd(), "models", f"{model_name}"), input_data, tracker
+    )
