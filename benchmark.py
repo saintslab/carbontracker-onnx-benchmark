@@ -9,6 +9,7 @@ from onnx_opcounter import calculate_params
 
 from model import generate_test_data, inference
 from model_zoo import fetch_model_from_name
+from blacklist import blacklist
 
 parser = argparse.ArgumentParser(prog="ONNX CarbonTracker benchmarker")
 parser.add_argument("folder", help="Folder of models to evaluate")
@@ -82,7 +83,10 @@ if __name__ == "__main__":
         for model_path in models:
             model_folder = "/".join(model_path.split("/")[-3:-1])
             model_name = model_path.split("/")[-1]
-            if not (already_evaluated == model_name).any():
+            if (
+                not (already_evaluated == model_name).any()
+                and model_name not in blacklist
+            ):
                 model = fetch_model_from_name(model_folder, model_name)
                 model.metadata_props
                 test_data = [generate_test_data(model) for i in range(args.data_size)]
